@@ -23,10 +23,10 @@ MEMORY_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ──────────────────────────────────────────────
-# LLM Configuration
+# LLM Configuration (Ollama)
 # ──────────────────────────────────────────────
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+LLM_MODEL = os.getenv("LLM_MODEL", "llama3")
 LLM_TEMPERATURE = 0.4  # lower = more focused reasoning
 
 # ──────────────────────────────────────────────

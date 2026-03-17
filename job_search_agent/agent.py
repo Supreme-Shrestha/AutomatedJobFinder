@@ -52,30 +52,31 @@ class AgentController:
         self.searcher = Searcher()
         self.reporter = Reporter()
 
-        # LLM client — only create if we have an API key
+        # LLM client — connects to local Ollama instance
         self.llm = self._init_llm()
         self.planner = Planner(self.llm, self.memory)
         self.reflector = Reflector(self.llm, self.memory)
 
     def _init_llm(self):
-        """Initialise the LangChain ChatModel."""
-        if not config.OPENAI_API_KEY:
-            log.warning(
-                "OPENAI_API_KEY not set. Planner/Reflector will use fallback mode."
-            )
-            return _DummyLLM()
-
+        """Initialise the LangChain ChatModel using Ollama."""
         try:
-            from langchain_openai import ChatOpenAI
+            from langchain_ollama import ChatOllama
 
-            return ChatOpenAI(
+            log.info(
+                f"Connecting to Ollama at {config.OLLAMA_BASE_URL} "
+                f"with model '{config.LLM_MODEL}'"
+            )
+            return ChatOllama(
                 model=config.LLM_MODEL,
-                api_key=config.OPENAI_API_KEY,
+                base_url=config.OLLAMA_BASE_URL,
                 temperature=config.LLM_TEMPERATURE,
             )
         except ImportError:
-            log.warning("langchain-openai not installed. Using fallback LLM.")
-            return _DummyLLM()
+            log.error(
+                "langchain-ollama is not installed. "
+                "Run: pip install langchain-ollama"
+            )
+            raise SystemExit(1)
 
     # ── Main Loop ───────────────────────────────────────
 
@@ -227,18 +228,7 @@ class AgentController:
         print(f"{'═' * 60}\n")
 
 
-class _DummyLLM:
-    """
-    Fallback LLM that returns empty responses.
-    Used when no API key is configured.
-    """
 
-    def invoke(self, prompt: str):
-        class _R:
-            content = "[]"
-
-        log.debug("DummyLLM invoked — returning empty response")
-        return _R()
 
 
 # ── CLI Entry Point ─────────────────────────────────────

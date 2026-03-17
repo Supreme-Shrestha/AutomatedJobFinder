@@ -4,10 +4,9 @@ python-dotenv>=1.0
 requests>=2.31
 beautifulsoup4>=4.12
 
-# LLM
-openai>=1.0
+# LLM (Ollama)
 langchain>=0.2
-langchain-openai>=0.1
+langchain-ollama>=0.1
 
 # Browser automation (for JS-heavy sites — optional)
 # selenium>=4.18

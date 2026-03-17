@@ -8,24 +8,27 @@ and uses LLM-powered reflection to improve queries over time.
 
 - **Multi-platform search** — Indeed, LinkedIn, RemoteOK, Appen
 - **Weighted scoring rubric** — 6 criteria: keywords, experience level, remote, pay, recency, platform trust
-- **LLM-powered planning** — GPT-4o generates optimised search queries
-- **Self-improving reflection** — analyses what worked and adapts strategy
+- **LLM-powered planning** — Uses local Ollama models (e.g., Llama 3) to generate optimised search queries
+- **Self-improving reflection** — analyses what worked and adapts strategy via local LLM
 - **Persistent memory** — SQLite stores all sessions, jobs, and reflections
 - **Structured JSON output** — per-session reports with scores and reasoning
 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Start Ollama and pull a model
+ollama pull llama3
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set up your API key
+# 3. Set up environment
 cp .env.example .env
-# Edit .env and add your OpenAI API key
+# Edit .env and set LLM_MODEL if not using llama3
 
-# 3. Run the agent
+# 4. Run the agent
 python -m job_search_agent
-
+```
 # Or with options:
 python -m job_search_agent --iterations 3
 python -m job_search_agent --dry-run    # no web requests
