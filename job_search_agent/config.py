@@ -84,10 +84,12 @@ PLATFORM_TRUST_SCORES: dict[str, float] = {
 # Agent Behaviour
 # ──────────────────────────────────────────────
 MAX_JOBS_PER_QUERY = 20
-MAX_ITERATIONS = 5
-SCORE_IMPROVEMENT_THRESHOLD = 0.05  # stop if avg score improves < 5%
+MAX_ITERATIONS = 50                 # safety cap — agent usually stops earlier
+PERFECT_SCORE_THRESHOLD = 0.85      # stop when best job scores ≥ this
+MAX_STAGNANT_ITERATIONS = 5         # stop if no improvement for N consecutive rounds
+SCORE_IMPROVEMENT_THRESHOLD = 0.02  # minimum avg score gain to count as "improving"
 QUERIES_PER_ITERATION = 7
-REQUEST_DELAY_RANGE = (1.0, 3.0)  # seconds between HTTP requests (rate-limit)
+REQUEST_DELAY_RANGE = (1.0, 3.0)    # seconds between HTTP requests (rate-limit)
 
 # ──────────────────────────────────────────────
 # Seed Queries (used on iteration 0)

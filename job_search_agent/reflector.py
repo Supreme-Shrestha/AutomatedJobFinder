@@ -1,10 +1,11 @@
 """
-Reflector module — uses the LLM to analyse search performance and
-produce actionable insights for the Planner to improve queries.
+Reflector module — uses the LLM to analyse search performance,
+produce actionable insights, AND suggest scoring weight adjustments.
 """
 
 import json
 import logging
+import re
 
 from .memory import Memory
 from .models import SearchSession
@@ -12,47 +13,69 @@ from .models import SearchSession
 log = logging.getLogger(__name__)
 
 
+class ReflectionResult:
+    """Structured output from the Reflector."""
+
+    def __init__(self, reflection: str, weight_adjustments: dict[str, float]):
+        self.reflection = reflection
+        self.weight_adjustments = weight_adjustments
+
+
 class Reflector:
     """
-    Analyses each search session and writes a natural-language reflection.
-    The reflection is stored in Memory and consumed by the Planner.
+    Analyses each search session, writes a natural-language reflection,
+    and suggests scoring weight adjustments to improve future scoring.
     """
 
     def __init__(self, llm_client, memory: Memory):
         self.llm = llm_client
         self.memory = memory
 
-    def reflect(self, session: SearchSession) -> str:
+    def reflect(self, session: SearchSession) -> ReflectionResult:
         """
-        Produce a reflection for the given session.
-        Compares current performance against historical data.
-        Returns a concise strategy note (3–6 sentences).
+        Produce a reflection + weight adjustments for the given session.
+        Returns a ReflectionResult with both text and structured adjustments.
         """
         perf_summary = self.memory.get_query_performance_summary()
         top_jobs_data = self._top_jobs_snapshot(session)
+        score_trend = self.memory.get_score_trend()
+        best_score = self.memory.get_best_score()
 
-        prompt = self._build_prompt(session, perf_summary, top_jobs_data)
+        prompt = self._build_prompt(session, perf_summary, top_jobs_data, score_trend, best_score)
 
         try:
             response = self.llm.invoke(prompt)
-            reflection = response.content.strip()
-            log.info(f"Reflector produced reflection ({len(reflection)} chars)")
-            return reflection
+            raw = response.content.strip()
+            log.info(f"Reflector produced output ({len(raw)} chars)")
+            return self._parse_response(raw)
         except Exception as e:
             log.warning(f"Reflector LLM call failed: {e}")
-            return self._fallback_reflection(session)
+            return ReflectionResult(
+                reflection=self._fallback_reflection(session),
+                weight_adjustments={},
+            )
 
     # ── Prompt ──────────────────────────────────────────
 
     def _build_prompt(
-        self, session: SearchSession, perf_summary: str, top_jobs_data: str
+        self,
+        session: SearchSession,
+        perf_summary: str,
+        top_jobs_data: str,
+        score_trend: list[float],
+        best_score: float,
     ) -> str:
-        return f"""You are a job search strategist analysing an AI agent's performance.
+        trend_str = " → ".join(f"{s:.3f}" for s in score_trend) if score_trend else "N/A"
+        return f"""You are a job search strategist analysing an AI agent that is AUTONOMOUSLY searching for the perfect beginner AI job.
+
+The agent will KEEP RUNNING until it finds a job scoring ≥ 0.85 or stagnates. Your job is to help it converge faster.
 
 CURRENT ITERATION #{session.iteration} STATS:
 - Queries used: {json.dumps(session.queries_used)}
 - Total jobs found: {session.total_jobs_found}
-- Average score: {session.avg_score:.3f}
+- Average score this round: {session.avg_score:.3f}
+- Best score ever found: {best_score:.3f}
+- Score trend (last iterations): {trend_str}
 
 TOP SCORING JOBS THIS ROUND:
 {top_jobs_data}
@@ -60,13 +83,56 @@ TOP SCORING JOBS THIS ROUND:
 HISTORICAL PERFORMANCE:
 {perf_summary}
 
-TASK — Write a concise reflection (4–6 sentences) addressing:
-1. Which queries performed best and why?
-2. What patterns do you see in high-scoring jobs (keywords, platforms, job types)?
-3. What should change in the next iteration to find better results?
-4. Suggest 2–3 specific new query ideas or platform strategies to try.
+CURRENT SCORING WEIGHTS:
+  keyword_match: 0.30, experience_level: 0.25, remote_available: 0.20,
+  pay_clarity: 0.10, recency: 0.10, platform_trust: 0.05
 
-Be specific, data-driven, and actionable. No fluff."""
+Respond with EXACTLY this JSON format (no markdown fences, no extra text):
+{{
+  "reflection": "4-6 sentence analysis: what worked, what failed, specific strategies for next round",
+  "weight_adjustments": {{
+    "keyword_match": 0.0,
+    "experience_level": 0.0,
+    "remote_available": 0.0,
+    "pay_clarity": 0.0,
+    "recency": 0.0,
+    "platform_trust": 0.0
+  }}
+}}
+
+RULES for weight_adjustments:
+- Values must be small deltas between -0.05 and +0.05
+- Use 0.0 if no change needed for that criterion
+- If high-scoring jobs share a pattern (e.g. all remote), INCREASE that weight
+- If a criterion doesn't help distinguish good jobs, DECREASE it
+- The reflection should suggest 2-3 NEW query ideas that are different from past queries"""
+
+    def _parse_response(self, raw: str) -> ReflectionResult:
+        """Parse the LLM response into structured ReflectionResult."""
+        # Strip markdown code fences if present
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            cleaned = "\n".join(lines).strip()
+
+        try:
+            data = json.loads(cleaned)
+            reflection = data.get("reflection", "")
+            adjustments = data.get("weight_adjustments", {})
+
+            # Validate adjustments are reasonable
+            valid_keys = {"keyword_match", "experience_level", "remote_available",
+                          "pay_clarity", "recency", "platform_trust"}
+            safe_adjustments = {}
+            for k, v in adjustments.items():
+                if k in valid_keys and isinstance(v, (int, float)):
+                    safe_adjustments[k] = max(-0.05, min(0.05, float(v)))
+
+            return ReflectionResult(reflection=reflection, weight_adjustments=safe_adjustments)
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            log.warning("Could not parse structured reflection, using raw text.")
+            return ReflectionResult(reflection=raw, weight_adjustments={})
 
     def _top_jobs_snapshot(self, session: SearchSession, n: int = 5) -> str:
         """Create a compact text summary of the top N jobs from this session."""
@@ -78,9 +144,11 @@ Be specific, data-driven, and actionable. No fluff."""
 
         lines = []
         for j in top:
+            breakdown = ", ".join(f"{k}={v:.2f}" for k, v in j.score_breakdown.items())
             lines.append(
                 f"  • [{j.score:.2f}] \"{j.title}\" at {j.company} ({j.platform}) "
                 f"— remote={j.is_remote}, query=\"{j.raw_query}\""
+                f"\n    Breakdown: {breakdown}"
             )
         return "\n".join(lines)
 

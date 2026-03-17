@@ -19,13 +19,26 @@ class Evaluator:
         weights: Optional[dict[str, float]] = None,
         keywords: Optional[list[str]] = None,
     ):
-        self.weights = weights or SCORING_WEIGHTS
+        self.weights = dict(weights or SCORING_WEIGHTS)
         self.keywords = [kw.lower() for kw in (keywords or TARGET_KEYWORDS)]
+        self._normalize_weights()
 
-        # Validate weights sum to ~1.0
+    def _normalize_weights(self):
+        """Ensure weights sum to exactly 1.0 by normalizing."""
         total = sum(self.weights.values())
-        if not (0.99 <= total <= 1.01):
-            raise ValueError(f"Scoring weights must sum to 1.0, got {total:.3f}")
+        if total > 0:
+            self.weights = {k: v / total for k, v in self.weights.items()}
+
+    def update_weights(self, adjustments: dict[str, float]):
+        """
+        Apply weight adjustments from the Reflector.
+        adjustments: e.g. {"keyword_match": +0.05, "pay_clarity": -0.03}
+        Clamps each weight to [0.01, 0.60] and re-normalizes.
+        """
+        for key, delta in adjustments.items():
+            if key in self.weights:
+                self.weights[key] = max(0.01, min(0.60, self.weights[key] + delta))
+        self._normalize_weights()
 
     # ── Public API ──────────────────────────────────────
 

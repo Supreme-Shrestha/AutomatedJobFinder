@@ -186,6 +186,21 @@ class Memory:
         row = cur.execute("SELECT MAX(iteration) as mx FROM sessions").fetchone()
         return (row["mx"] + 1) if row and row["mx"] is not None else 0
 
+    def get_best_score(self) -> float:
+        """Return the highest job score across all sessions."""
+        cur = self.conn.cursor()
+        row = cur.execute("SELECT MAX(score) as best FROM jobs").fetchone()
+        return row["best"] if row and row["best"] is not None else 0.0
+
+    def get_score_trend(self, last_n: int = 5) -> list[float]:
+        """Return avg scores for the last N sessions, oldest first."""
+        cur = self.conn.cursor()
+        rows = cur.execute(
+            "SELECT avg_score FROM sessions ORDER BY iteration DESC LIMIT ?",
+            (last_n,),
+        ).fetchall()
+        return [row["avg_score"] for row in reversed(rows)]
+
     # ── Lifecycle ───────────────────────────────────────
 
     def close(self):
