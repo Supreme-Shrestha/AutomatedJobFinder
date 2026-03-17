@@ -59,6 +59,11 @@ TARGET_KEYWORDS: list[str] = [
     "remote",
     "freelance",
     "crowdsourcing",
+    "nepal",
+    "nepali",
+    "worldwide",
+    "global remote",
+    "anywhere in the world"
 ]
 
 # ──────────────────────────────────────────────
@@ -95,11 +100,11 @@ REQUEST_DELAY_RANGE = (1.0, 3.0)    # seconds between HTTP requests (rate-limit)
 # Seed Queries (used on iteration 0)
 # ──────────────────────────────────────────────
 SEED_QUERIES: list[str] = [
-    "data annotation remote entry level",
-    "image labeling no experience",
-    "AI content moderation beginner",
-    "RLHF data trainer remote",
-    "text classification freelance",
-    "AI training data collection remote",
-    "data labeling crowdsource work from home",
+    "data annotation remote entry level nepal",
+    "image labeling no experience worldwide",
+    "AI content moderation beginner global remote",
+    "RLHF data trainer remote anywhere",
+    "text classification freelance nepal",
+    "AI training data collection remote worldwide",
+    "nepali speaking data labeling crowdsource",
 ]

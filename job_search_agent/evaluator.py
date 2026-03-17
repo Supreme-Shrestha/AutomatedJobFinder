@@ -98,11 +98,38 @@ class Evaluator:
         return max(0.0, min(raw, 1.0))
 
     def _remote_score(self, job: Job, text: str) -> float:
-        """1.0 if remote, 0.0 otherwise."""
-        if job.is_remote:
+        """
+        1.0 if remote/worldwide/Nepal.
+        0.0 if explicitly restricted to another region (e.g., US only).
+        """
+        # Bad signals — explicitly restricts away from Nepal/Worldwide
+        geo_restrictions = [
+            "us only", "usa only", "uk only", "europe only", "eu only",
+            "must be located in the us", "must live in the us",
+            "must reside in the united states", "must be in uk",
+            "states only", "north america only"
+        ]
+        
+        # Good signals — explicitly allows Nepal
+        geo_good = [
+            "worldwide", "global remote", "anywhere in the world",
+            "nepal", "nepali", "hire anywhere"
+        ]
+
+        # 1. Immediate penalty if it restricts exactly
+        if any(bad in text for bad in geo_restrictions):
+            return 0.0
+
+        # 2. Perfect score if it specifically includes our geo preference
+        if any(good in text for good in geo_good):
             return 1.0
-        remote_signals = ["remote", "work from home", "wfh", "anywhere", "distributed"]
-        return 1.0 if any(s in text for s in remote_signals) else 0.0
+
+        # 3. Standard remote check
+        if job.is_remote:
+            return 0.8  # Good, but not as good as explicitly worldwide
+            
+        remote_signals = ["remote", "work from home", "wfh", "distributed team"]
+        return 0.8 if any(s in text for s in remote_signals) else 0.0
 
     def _pay_score(self, text: str) -> float:
         """1.0 if salary or rate information is present."""
